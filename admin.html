@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ผู้ดูแลระบบ - ระบบเช็คชื่อนักเรียนอัจฉริยะ</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Custom styles -->
+    <style>
+        body { font-family: 'Inter', 'Kanit', sans-serif; }
+        .loader { border-top-color: #3b82f6; animation: spin 1s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .animate-fade-in { animation: fadeIn 0.5s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+        .custom-scrollbar::-webkit-scrollbar { width: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #1e293b; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #475569; border-radius: 10px; }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-100 min-h-screen p-4">
+
+    <div class="max-w-7xl mx-auto">
+        <header class="flex items-center justify-between mb-8">
+            <div class="flex items-center space-x-3">
+                <i data-lucide="settings" class="text-blue-500 w-8 h-8"></i>
+                <h1 class="text-2xl font-bold">ผู้ดูแลระบบ</h1>
+            </div>
+            <div class="flex items-center gap-2">
+                <button onclick="window.location.href='index.html'" class="text-gray-400 hover:bg-gray-700 rounded-lg text-sm p-2.5" title="ลงทะเบียน">
+                    <i data-lucide="user-plus" class="w-5 h-5"></i>
+                </button>
+                <button onclick="window.location.href='checkin.html'" class="text-gray-400 hover:bg-gray-700 rounded-lg text-sm p-2.5" title="เช็คชื่อ">
+                    <i data-lucide="clipboard-check" class="w-5 h-5"></i>
+                </button>
+                <button onclick="toggleTheme()" type="button" class="text-gray-400 hover:bg-gray-700 rounded-lg text-sm p-2.5">
+                    <i data-lucide="sun" id="theme-icon-sun" class="hidden w-5 h-5"></i>
+                    <i data-lucide="moon" id="theme-icon-moon" class="w-5 h-5"></i>
+                </button>
+            </div>
+        </header>
+
+        <div id="alert" class="p-3 rounded-lg text-sm mb-6 hidden" role="alert"></div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+            <!-- GAS URL Configuration -->
+            <div class="bg-gray-800 p-6 rounded-lg shadow-lg lg:col-span-2">
+                <h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                    <i data-lucide="link" class="w-5 h-5"></i>
+                    การตั้งค่า Google Apps Script URL
+                </h2>
+                <div class="space-y-4">
+                    <div>
+                        <label for="gasUrl" class="block text-sm font-medium text-gray-300 mb-2">URL สำหรับเชื่อมต่อ Google Apps Script</label>
+                        <input type="url" id="gasUrl" placeholder="https://script.google.com/macros/s/..." class="w-full rounded-md border-gray-600 bg-gray-700 text-gray-100 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-3">
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="saveGasUrl()" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2">
+                            <i data-lucide="save"></i>
+                            <span>บันทึก URL</span>
+                        </button>
+                        <button onclick="testGasConnection()" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2">
+                            <i data-lucide="wifi"></i>
+                            <span>ทดสอบการเชื่อมต่อ</span>
+                        </button>
+                    </div>
+                    <div id="gasUrlStatus" class="text-sm mt-2">
+                        <!-- Status will be shown here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- System Status -->
+            <div class="bg-gray-800 p-6 rounded-lg shadow-lg">
+                <h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                    <i data-lucide="activity" class="w-5 h-5"></i>
+                    สถานะระบบ
+                </h2>
+                <div class="space-y-3">
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-300">GAS URL:</span>
+                        <span id="gasStatus" class="px-2 py-1 text-xs rounded-full bg-gray-600">ยังไม่ได้ตั้งค่า</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-300">จำนวนนักเรียน:</span>
+                        <span id="studentCount" class="px-2 py-1 text-xs rounded-full bg-gray-600">กำลังโหลด...</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-300">จำนวนการเช็คชื่อ:</span>
+                        <span id="attendanceCount" class="px-2 py-1 text-xs rounded-full bg-gray-600">กำลังโหลด...</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-300">เวอร์ชัน:</span>
+                        <span class="px-2 py-1 text-xs rounded-full bg-blue-600">v2.0</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Student Management -->
+            <div class="bg-gray-800 p-6 rounded-lg shadow-lg">
+                <h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                    <i data-lucide="users" class="w-5 h-5"></i>
+                    จัดการข้อมูลนักเรียน
+                </h2>
+                <div class="space-y-4">
+                    <div class="flex gap-2">
+                        <button onclick="loadStudents()" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2">
+                            <i data-lucide="refresh-cw"></i>
+                            <span>โหลดข้อมูลนักเรียน</span>
+                        </button>
+                        <button onclick="exportStudents()" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2">
+                            <i data-lucide="download"></i>
+                            <span>ส่งออกข้อมูล</span>
+                        </button>
+                    </div>
+                    <div class="max-h-80 overflow-y-auto custom-scrollbar">
+                        <table class="w-full text-sm text-left text-gray-400">
+                            <thead class="text-xs uppercase bg-gray-700 text-gray-400 sticky top-0">
+                                <tr>
+                                    <th scope="col" class="px-4 py-3">รหัส</th>
+                                    <th scope="col" class="px-4 py-3">ชื่อ</th>
+                                    <th scope="col" class="px-4 py-3">ห้อง</th>
+                                    <th scope="col" class="px-4 py-3">การดำเนินการ</th>
+                                </tr>
+                            </thead>
+                            <tbody id="studentsTableBody">
+                                <!-- Student data will be populated here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Attendance Management -->
+            <div class="bg-gray-800 p-6 rounded-lg shadow-lg">
+                <h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                    <i data-lucide="clipboard-list" class="w-5 h-5"></i>
+                    จัดการข้อมูลการเช็คชื่อ
+                </h2>
+                <div class="space-y-4">
+                    <div class="flex gap-2">
+                        <button onclick="loadAttendance()" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2">
+                            <i data-lucide="refresh-cw"></i>
+                            <span>โหลดประวัติเช็คชื่อ</span>
+                        </button>
+                        <button onclick="exportAttendance()" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2">
+                            <i data-lucide="download"></i>
+                            <span>ส่งออกประวัติ</span>
+                        </button>
+                    </div>
+                    <div class="flex gap-2">
+                        <input type="date" id="filterDate" class="rounded-md border-gray-600 bg-gray-700 text-gray-100 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2">
+                        <button onclick="filterByDate()" class="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 flex items-center gap-2">
+                            <i data-lucide="filter"></i>
+                            <span>กรองตามวันที่</span>
+                        </button>
+                    </div>
+                    <div class="max-h-80 overflow-y-auto custom-scrollbar">
+                        <table class="w-full text-sm text-left text-gray-400">
+                            <thead class="text-xs uppercase bg-gray-700 text-gray-400 sticky top-0">
+                                <tr>
+                                    <th scope="col" class="px-4 py-3">รหัส</th>
+                                    <th scope="col" class="px-4 py-3">วันที่</th>
+                                    <th scope="col" class="px-4 py-3">เวลา</th>
+                                    <th scope="col" class="px-4 py-3">สถานะ</th>
+                                </tr>
+                            </thead>
+                            <tbody id="attendanceTableBody">
+                                <!-- Attendance data will be populated here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- System Actions -->
+        <div class="mt-6 bg-gray-800 p-6 rounded-lg shadow-lg">
+            <h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                <i data-lucide="shield" class="w-5 h-5"></i>
+                การดำเนินการระบบ
+            </h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <button onclick="clearLocalStorage()" class="bg-yellow-600 text-white px-4 py-3 rounded-lg hover:bg-yellow-700 flex items-center justify-center gap-2">
+                    <i data-lucide="trash-2"></i>
+                    <span>ล้างข้อมูลในเครื่อง</span>
+                </button>
+                <button onclick="resetRegistration()" class="bg-orange-600 text-white px-4 py-3 rounded-lg hover:bg-orange-700 flex items-center justify-center gap-2">
+                    <i data-lucide="user-x"></i>
+                    <span>รีเซ็ตการลงทะเบียน</span>
+                </button>
+                <button onclick="clearAllData()" class="bg-red-600 text-white px-4 py-3 rounded-lg hover:bg-red-700 flex items-center justify-center gap-2">
+                    <i data-lucide="alert-triangle"></i>
+                    <span>ล้างข้อมูลทั้งหมด</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        lucide.createIcons();
+
+        let gasWebAppUrl = localStorage.getItem('gasWebAppUrl') || '';
+
+        window.addEventListener('DOMContentLoaded', async () => {
+            // Load saved GAS URL
+            document.getElementById('gasUrl').value = gasWebAppUrl;
+            
+            // Update system status
+            updateSystemStatus();
+            
+            // Load initial data
+            if (gasWebAppUrl) {
+                await loadStudents();
+                await loadAttendance();
+            }
+            
+            toggleTheme(true);
+        });
+
+        function updateSystemStatus() {
+            const gasStatus = document.getElementById('gasStatus');
+            if (gasWebAppUrl) {
+                gasStatus.textContent = 'ตั้งค่าแล้ว';
+                gasStatus.className = 'px-2 py-1 text-xs rounded-full bg-green-600';
+            } else {
+                gasStatus.textContent = 'ยังไม่ได้ตั้งค่า';
+                gasStatus.className = 'px-2 py-1 text-xs rounded-full bg-gray-600';
+            }
+        }
+
+        function saveGasUrl() {
+            const url = document.getElementById('gasUrl').value.trim();
+            if (!url) {
+                showAlert('alert', 'กรุณากรอก URL', 'error');
+                return;
+            }
+            
+            // Basic URL validation
+            if (!url.startsWith('https://script.google.com/')) {
+                showAlert('alert', 'URL ต้องเป็น Google Apps Script URL ที่ขึ้นต้นด้วย https://script.google.com/', 'error');
+                return;
+            }
+            
+            localStorage.setItem('gasWebAppUrl', url);
+            gasWebAppUrl = url;
+            updateSystemStatus();
+            showAlert('alert', 'บันทึก URL สำเร็จ', 'success');
+        }
+
+        async function testGasConnection() {
+            if (!gasWebAppUrl) {
+                showAlert('alert', 'กรุณาตั้งค่า URL ก่อนทดสอบการเชื่อมต่อ', 'error');
+                return;
+            }
+            
+            const statusDiv = document.getElementById('gasUrlStatus');
+            statusDiv.innerHTML = '<div class="flex items-center gap-2 text-blue-400"><div class="loader w-4 h-4"></div> กำลังทดสอบการเชื่อมต่อ...</div>';
+            
+            try {
+                const response = await apiCall({
+                    action: 'testConnection'
+                });
+                
+                if (response.success) {
+                    statusDiv.innerHTML = '<div class="flex items-center gap-2 text-green-400"><i data-lucide="check-circle" class="w-4 h-4"></i> การเชื่อมต่อสำเร็จ</div>';
+                } else {
+                    statusDiv.innerHTML = '<div class="flex items-center gap-2 text-red-400"><i data-lucide="x-circle" class="w-4 h-4"></i> การเชื่อมต่อล้มเหลว: ' + response.error + '</div>';
+                }
+            } catch (error) {
+                console.error('Connection test error:', error);
+                statusDiv.innerHTML = '<div class="flex items-center gap-2 text-red-400"><i data-lucide="x-circle" class="w-4 h-4"></i> เกิดข้อผิดพลาด: ' + error.message + '</div>';
+            }
+            lucide.createIcons();
+        }
+
+        async function loadStudents() {
+            if (!gasWebAppUrl) {
+                showAlert('alert', 'กรุณาตั้งค่า GAS URL ก่อนโหลดข้อมูล', 'error');
+                return;
+            }
+            
+            const tableBody = document.getElementById('studentsTableBody');
+            tableBody.innerHTML = '<tr><td colspan="4" class="px-4 py-4 text-center"><div class="flex items-center justify-center gap-2"><div class="loader w-5 h-5"></div> กำลังโหลด...</div></td></tr>';
+            
+            try {
+                const response = await apiCall({
+                    action: 'getStudents'
+                });
+                
+                if (response.success) {
+                    const students = response.data || [];
+                    document.getElementById('studentCount').textContent = students.length + ' คน';
+                    
+                    if (students.length === 0) {
+                        tableBody.innerHTML = '<tr><td colspan="4" class="px-4 py-4 text-center text-gray-400">ไม่มีข้อมูลนักเรียน</td></tr>';
+                        return;
+                    }
+                    
+                    tableBody.innerHTML = '';
+                    students.forEach(student => {
+                        const row = document.createElement('tr');
+                        row.className = 'border-b border-gray-700 hover:bg-gray-700';
+                        row.innerHTML = `
+                            <td class="px-4 py-3 font-medium">${student.id}</td>
+                            <td class="px-4 py-3">${student.name}</td>
+                            <td class="px-4 py-3">${student.class}</td>
+                            <td class="px-4 py-3">
+                                <button onclick="deleteStudent('${student.id}')" class="text-red-400 hover:text-red-300" title="ลบนักเรียน">
+                                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                </button>
+                            </td>
+                        `;
+                        tableBody.appendChild(row);
+                    });
+                    lucide.createIcons();
+                } else {
+                    throw new Error(response.error || 'ไม่สามารถโหลดข้อมูลนักเรียนได้');
+                }
+            } catch (error) {
+                console.error('Error loading students:', error);
+                tableBody.innerHTML = '<tr><td colspan="4" class="px-4 py-4 text-center text-red-400">เกิดข้อผิดพลาด: ' + error.message + '</td></tr>';
+            }
+        }
+
+        async function loadAttendance() {
+            if (!gasWebAppUrl) {
+                showAlert('alert', 'กรุณาตั้งค่า GAS URL ก่อนโหลดข้อมูล', 'error');
+                return;
+            }
+            
+            const tableBody = document.getElementById('attendanceTableBody');
+            tableBody.innerHTML = '<tr><td colspan="4" class="px-4 py-4 text-center"><div class="flex items-center justify-center gap-2"><div class="loader w-5 h-5"></div> กำลังโหลด...</div></td></tr>';
+            
+            try {
+                const response = await apiCall({
+                    action: 'getAttendance'
+                });
+                
+                if (response.success) {
+                    const attendance = response.data || [];
+                    document.getElementById('attendanceCount').textContent = attendance.length + ' รายการ';
+                    
+                    if (attendance.length === 0) {
+                        tableBody.innerHTML = '<tr><td colspan="4" class="px-4 py-4 text-center text-gray-400">ไม่มีข้อมูลการเช็คชื่อ</td></tr>';
+                        return;
+                    }
+                    
+                    // Sort by timestamp (newest first)
+                    attendance.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+                    
+                    tableBody.innerHTML = '';
+                    attendance.forEach(record => {
+                        const date = new Date(record.timestamp);
+                        const row = document.createElement('tr');
+                        row.className = 'border-b border-gray-700 hover:bg-gray-700';
+                        row.innerHTML = `
+                            <td class="px-4 py-3 font-medium">${record.id}</td>
+                            <td class="px-4 py-3">${date.toLocaleDateString('th-TH')}</td>
+                            <td class="px-4 py-3">${date.toLocaleTimeString('th-TH')}</td>
+                            <td class="px-4 py-3">
+                                <span class="px-2 py-1 text-xs rounded-full ${record.status === 'มา' ? 'bg-green-500' : 'bg-yellow-500'}">${record.status}</span>
+                            </td>
+                        `;
+                        tableBody.appendChild(row);
+                    });
+                } else {
+                    throw new Error(response.error || 'ไม่สามารถโหลดข้อมูลการเช็คชื่อได้');
+                }
+            } catch (error) {
+                console.error('Error loading attendance:', error);
+                tableBody.innerHTML = '<tr><td colspan="4" class="px-4 py-4 text-center text-red-400">เกิดข้อผิดพลาด: ' + error.message + '</td></tr>';
+            }
+        }
+
+        async function filterByDate() {
+            const dateFilter = document.getElementById('filterDate').value;
+            if (!dateFilter) {
+                await loadAttendance();
+                return;
+            }
+            
+            if (!gasWebAppUrl) {
+                showAlert('alert', 'กรุณาตั้งค่า GAS URL ก่อนโหลดข้อมูล', 'error');
+                return;
+            }
+            
+            const tableBody = document.getElementById('attendanceTableBody');
+            tableBody.innerHTML = '<tr><td colspan="4" class="px-4 py-4 text-center"><div class="flex items-center justify-center gap-2"><div class="loader w-5 h-5"></div> กำลังโหลด...</div></td></tr>';
+            
+            try {
+                const response = await apiCall({
+                    action: 'getAttendance'
+                });
+                
+                if (response.success) {
+                    const attendance = response.data || [];
+                    const filteredAttendance = attendance.filter(record => 
+                        record.timestamp.includes(dateFilter)
+                    );
+                    
+                    if (filteredAttendance.length === 0) {
+                        tableBody.innerHTML = '<tr><td colspan="4" class="px-4 py-4 text-center text-gray-400">ไม่มีข้อมูลการเช็คชื่อในวันที่เลือก</td></tr>';
+                        return;
+                    }
+                    
+                    // Sort by timestamp (newest first)
+                    filteredAttendance.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+                    
+                    tableBody.innerHTML = '';
+                    filteredAttendance.forEach(record => {
+                        const date = new Date(record.timestamp);
+                        const row = document.createElement('tr');
+                        row.className = 'border-b border-gray-700 hover:bg-gray-700';
+                        row.innerHTML = `
+                            <td class="px-4 py-3 font-medium">${record.id}</td>
+                            <td class="px-4 py-3">${date.toLocaleDateString('th-TH')}</td>
+                            <td class="px-4 py-3">${date.toLocaleTimeString('th-TH')}</td>
+                            <td class="px-4 py-3">
+                                <span class="px-2 py-1 text-xs rounded-full ${record.status === 'มา' ? 'bg-green-500' : 'bg-yellow-500'}">${record.status}</span>
+                            </td>
+                        `;
+                        tableBody.appendChild(row);
+                    });
+                } else {
+                    throw new Error(response.error || 'ไม่สามารถโหลดข้อมูลการเช็คชื่อได้');
+                }
+            } catch (error) {
+                console.error('Error loading attendance:', error);
+                tableBody.innerHTML = '<tr><td colspan="4" class="px-4 py-4 text-center text-red-400">เกิดข้อผิดพลาด: ' + error.message + '</td></tr>';
+            }
+        }
+
+        async function deleteStudent(studentId) {
+            if (!confirm(`คุณแน่ใจว่าต้องการลบนักเรียนรหัส ${studentId} ใช่หรือไม่?`)) {
+                return;
+            }
+            
+            try {
+                const response = await apiCall({
+                    action: 'deleteStudent',
+                    data: { id: studentId }
+                });
+                
+                if (response.success) {
+                    showAlert('alert', 'ลบนักเรียนสำเร็จ', 'success');
+                    await loadStudents(); // Reload the student list
+                } else {
+                    throw new Error(response.error || 'ไม่สามารถลบนักเรียนได้');
+                }
+            } catch (error) {
+                console.error('Error deleting student:', error);
+                showAlert('alert', 'เกิดข้อผิดพลาดในการลบนักเรียน: ' + error.message, 'error');
+            }
+        }
+
+        function exportStudents() {
+            if (!gasWebAppUrl) {
+                showAlert('alert', 'กรุณาตั้งค่า GAS URL ก่อนส่งออกข้อมูล', 'error');
+                return;
+            }
+            
+            // This would typically download a CSV file
+            showAlert('alert', 'คุณสมบัตินี้อยู่ในระหว่างการพัฒนา', 'info');
+        }
+
+        function exportAttendance() {
+            if (!gasWebAppUrl) {
+                showAlert('alert', 'กรุณาตั้งค่า GAS URL ก่อนส่งออกข้อมูล', 'error');
+                return;
+            }
+            
+            // This would typically download a CSV file
+            showAlert('alert', 'คุณสมบัตินี้อยู่ในระหว่างการพัฒนา', 'info');
+        }
+
+        function clearLocalStorage() {
+            if (confirm('คุณแน่ใจว่าต้องการล้างข้อมูลทั้งหมดในเครื่องหรือไม่? การดำเนินการนี้ไม่สามารถย้อนกลับได้')) {
+                localStorage.clear();
+                showAlert('alert', 'ล้างข้อมูลในเครื่องสำเร็จ กรุณารีเฟรชหน้าเว็บ', 'success');
+                setTimeout(() => {
+                    location.reload();
+                }, 2000);
+            }
+        }
+
+        function resetRegistration() {
+            if (confirm('คุณแน่ใจว่าต้องการรีเซ็ตการลงทะเบียนหรือไม่? นักเรียนจะต้องลงทะเบียนใหม่')) {
+                localStorage.removeItem('registeredStudentId');
+                localStorage.removeItem('registeredStudentName');
+                localStorage.removeItem('registeredStudentClass');
+                showAlert('alert', 'รีเซ็ตการลงทะเบียนสำเร็จ', 'success');
+            }
+        }
+
+        function clearAllData() {
+            if (confirm('คุณแน่ใจว่าต้องการล้างข้อมูลทั้งหมดทั้งในเครื่องและในฐานข้อมูลหรือไม่? การดำเนินการนี้ไม่สามารถย้อนกลับได้')) {
+                // Clear local storage
+                localStorage.clear();
+                
+                // Call API to clear all data
+                if (gasWebAppUrl) {
+                    apiCall({
+                        action: 'clearAllData'
+                    }).then(response => {
+                        if (response.success) {
+                            showAlert('alert', 'ล้างข้อมูลทั้งหมดสำเร็จ กรุณารีเฟรชหน้าเว็บ', 'success');
+                            setTimeout(() => {
+                                location.reload();
+                            }, 2000);
+                        } else {
+                            throw new Error(response.error || 'ไม่สามารถล้างข้อมูลในฐานข้อมูลได้');
+                        }
+                    }).catch(error => {
+                        console.error('Error clearing all data:', error);
+                        showAlert('alert', 'ล้างข้อมูลในเครื่องสำเร็จ แต่ไม่สามารถล้างข้อมูลในฐานข้อมูลได้: ' + error.message, 'warning');
+                    });
+                } else {
+                    showAlert('alert', 'ล้างข้อมูลในเครื่องสำเร็จ', 'success');
+                    setTimeout(() => {
+                        location.reload();
+                    }, 2000);
+                }
+            }
+        }
+
+        // Utility Functions
+        function showAlert(elementId, message, type) {
+            const alertDiv = document.getElementById(elementId);
+            alertDiv.textContent = message;
+            alertDiv.classList.remove('hidden', 'bg-green-500', 'bg-red-500', 'bg-blue-500', 'bg-yellow-500');
+            
+            if (type === 'success') alertDiv.classList.add('bg-green-500');
+            else if (type === 'error') alertDiv.classList.add('bg-red-500');
+            else if (type === 'info') alertDiv.classList.add('bg-blue-500');
+            else if (type === 'warning') alertDiv.classList.add('bg-yellow-500');
+            
+            alertDiv.classList.remove('hidden');
+            setTimeout(() => { alertDiv.classList.add('hidden'); }, 5000);
+        }
+
+        async function apiCall(payload) {
+            if (!gasWebAppUrl) {
+                throw new Error('GAS URL not configured');
+            }
+            try {
+                const response = await fetch(gasWebAppUrl, {
+                    method: 'POST',
+                    mode: 'cors',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify(payload)
+                });
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                return await response.json();
+            } catch (error) {
+                console.error('API Call Error:', error);
+                throw error;
+            }
+        }
+
+        // Theme Management
+        function toggleTheme(initialLoad = false) {
+            const html = document.documentElement;
+            let isDarkMode = html.classList.contains('dark');
+
+            if (initialLoad) {
+                isDarkMode = localStorage.getItem('theme') === 'dark' || 
+                            (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches);
+                if (isDarkMode) html.classList.add('dark');
+                else html.classList.remove('dark');
+            } else {
+                if (isDarkMode) {
+                    html.classList.remove('dark');
+                    localStorage.setItem('theme', 'light');
+                } else {
+                    html.classList.add('dark');
+                    localStorage.setItem('theme', 'dark');
+                }
+            }
+            updateThemeIcons();
+        }
+
+        function updateThemeIcons() {
+            const themeIconSun = document.getElementById('theme-icon-sun');
+            const themeIconMoon = document.getElementById('theme-icon-moon');
+            const isDark = document.documentElement.classList.contains('dark');
+            
+            if (isDark) {
+                themeIconMoon.classList.add('hidden');
+                themeIconSun.classList.remove('hidden');
+            } else {
+                themeIconSun.classList.add('hidden');
+                themeIconMoon.classList.remove('hidden');
+            }
+            lucide.createIcons();
+        }
+
+    </script>
+</body>
+</html>
